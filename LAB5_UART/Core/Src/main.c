@@ -49,11 +49,13 @@ uint8_t current = 1;
 uint8_t before = 0;
 GPIO_PinState Button1;
 
-uint8_t RxBuffer[20];
+uint8_t RxBuffer[1];
 uint8_t TxBuffer[200];
 uint8_t modecontrol = 'x';
 uint8_t checkstate = 1;
 uint8_t LEDfrequency = 1;
+int a = 0;
+int round = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -68,6 +70,7 @@ void UARTDMAConfig();
 void mainmenu();
 void detailscase0();
 void detailscase1();
+void functionstate();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -116,47 +119,25 @@ int main(void)
   while (1)
   {
 	  DummyTask();
-			switch(modecontrol)
-			{
-			case '0':
-				if(RxBuffer[0] == 'a')
-				{
-					if(LEDfrequency >= 1)
-					{
-						LEDfrequency = 1;
-					}
-				}
-				else if(RxBuffer[0] == 's')
-				{
-					if(LEDfrequency > 1)
-					{
-						LEDfrequency = -1;
-					}
-				}
-				else if(RxBuffer[0] == 'd')
-				{
-					HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
-				}
-				else if(RxBuffer[0] == 'x')
-				{
-					mainmenu();
-				}
-				detailscase0();
-				RxBuffer[0] = '\0';
-				modecontrol = RxBuffer[0];
-				break;
-			case '1':
-				detailscase1();
-				RxBuffer[0] = '\0';
-				CheckRising();
-				modecontrol = RxBuffer[0];
-				break;
-			case 'x':
-				mainmenu();
-				RxBuffer[0] = '\0';
-			default:
-				modecontrol = RxBuffer[0];
-			}
+	  functionstate();
+	  if(round%2 == 1)
+	  {
+		  HAL_GPIO_WritePin(LD2_GPIO_Port,LD2_Pin, RESET);
+		  RxBuffer[0] = '\0';
+//		  sprintf((char*)TxBuffer,"LED OFF %s\r\n", RxBuffer);
+//		  HAL_UART_Transmit_DMA(&huart2, TxBuffer, strlen((char*)TxBuffer));
+	  }
+	  else if(round%2 == 0)
+	  {
+		  DummyTask();
+		  RxBuffer[0] = '\0';
+//		  sprintf((char*)TxBuffer,"LED ON %s\r\n", RxBuffer);
+//		  HAL_UART_Transmit_DMA(&huart2, TxBuffer, strlen((char*)TxBuffer));
+	  }
+	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_0);
+
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -278,7 +259,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0|LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -286,12 +267,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
+  /*Configure GPIO pins : PA0 LD2_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 }
 
@@ -303,13 +284,23 @@ void CheckRising()
 
 	if(before == 0 && current == 1)
 	{
-		uint8_t text1[] = "UnPress\r\n";
+		uint8_t text1[] = "Status : UnPressed\r\n";
 		HAL_UART_Transmit_DMA(&huart2, text1 , strlen((char*)text1));
+		checkstate = 0;
+		while(!checkstate)
+		{
+			HAL_Delay(1);
+		}
 	}
 	else if(current == 0 && before == 1)
 	{
-		uint8_t text[] = "Press\r\n";
+		uint8_t text[] = "Status : Pressed\r\n";
 		HAL_UART_Transmit_DMA(&huart2, text , strlen((char*)text));
+		checkstate = 0;
+		while(!checkstate)
+		{
+			HAL_Delay(1);
+		}
 	}
 	before = current;
 	HAL_Delay(1);
@@ -317,14 +308,16 @@ void CheckRising()
 
 void mainmenu()
 {
-	uint8_t textmainmenu[] = "Case 0 : LED Control\r\n";
+	uint8_t textmainmenu[] = 	"Please select the function:\r\n\r\n"
+								"Press 0 : LED Control\r\n";
 	HAL_UART_Transmit_DMA(&huart2, textmainmenu , strlen((char*)textmainmenu));
 	checkstate = 0;
 	while(!checkstate)
 	{
 		HAL_Delay(1);
 	}
-	uint8_t textmainmenu5[] = "Case 1 : Button Status\r\n\r\n";
+	uint8_t textmainmenu5[] = 	"---------------------------------------------------------\r\n"
+								"Press 1 : Button Status\r\n\r\n";
 	HAL_UART_Transmit_DMA(&huart2, textmainmenu5, strlen((char*)textmainmenu5));
 	checkstate = 0;
 	while(!checkstate)
@@ -334,7 +327,9 @@ void mainmenu()
 }
 void detailscase0()
 {
-	uint8_t textmainmenu1[] = "a : Speed Up +1Hz\r\n";
+	uint8_t textmainmenu1[] = 	"---------------------------------------------------------\r\n"
+								"Press the Character:\r\n\r\n"
+								"a : Speed Up +1Hz\r\n";
 	HAL_UART_Transmit_DMA(&huart2, textmainmenu1 , strlen((char*)textmainmenu1));
 	checkstate = 0;
 	while(!checkstate)
@@ -355,7 +350,8 @@ void detailscase0()
 	{
 		HAL_Delay(1);
 	}
-	uint8_t textmainmenu4[] = "x : back\r\n\r\n";
+	uint8_t textmainmenu4[] = "Press 'x' to go to back menu\r\n"
+							  "---------------------------------------------------------\r\n\r\n";
 	HAL_UART_Transmit_DMA(&huart2, textmainmenu4 , strlen((char*)textmainmenu4));
 	checkstate = 0;
 	while(!checkstate)
@@ -365,14 +361,14 @@ void detailscase0()
 }
 void detailscase1()
 {
-	uint8_t textmainmenu6[] = "x : back\r\n";
+	uint8_t textmainmenu6[] =	"Press 'x' to go to back menu\r\n";
 	HAL_UART_Transmit_DMA(&huart2, textmainmenu6 , strlen((char*)textmainmenu6));
 	checkstate = 0;
 	while(!checkstate)
 	{
 		HAL_Delay(1);
 	}
-	uint8_t textmainmenu7[] = "if button Press/UnPress show button status\r\n\r\n";
+	uint8_t textmainmenu7[] = "If Button Press/UnPress Show Button Status:\r\n";
 	HAL_UART_Transmit_DMA(&huart2, textmainmenu7 , strlen((char*)textmainmenu7));
 	checkstate = 0;
 	while(!checkstate)
@@ -381,16 +377,78 @@ void detailscase1()
 	}
 }
 
+void functionstate()
+{
+	switch(modecontrol)
+	{
+	case '0':
+		if(RxBuffer[0] == 'a')
+		{
+			a += 1;
+			LEDfrequency += 1;
+			RxBuffer[0] = '\0';
+			sprintf((char*)TxBuffer,"hz = %d\r\n", a);
+			HAL_UART_Transmit_DMA(&huart2, TxBuffer, strlen((char*)TxBuffer));
+		}
+		else if(RxBuffer[0] == 's')
+		{
+			LEDfrequency -= 1;
+			if(LEDfrequency < 0)
+			{
+				a -= 1;
+				if(a < 0)
+				{
+					a = 0;
+				}
+				LEDfrequency -= 1;
+				RxBuffer[0] = '\0';
+				sprintf((char*)TxBuffer,"hz = %d\r\n", a);
+				HAL_UART_Transmit_DMA(&huart2, TxBuffer, strlen((char*)TxBuffer));
+			}
+
+		}
+		else if(RxBuffer[0] == 'd')
+		{
+			round += 1;
+		}
+		else if(RxBuffer[0] == 'x')
+		{
+			modecontrol = 'x';
+		}
+
+		break;
+	case '1':
+		CheckRising();
+		if(RxBuffer[0] == 'x')
+		{
+			modecontrol = 'x';
+		}
+		break;
+	case 'x':
+		mainmenu();
+		RxBuffer[0] = '\0';
+	default:
+		modecontrol = RxBuffer[0];
+		if(modecontrol == '1')
+		{
+			detailscase1();
+		}
+		else if(modecontrol == '0')
+		{
+			detailscase0();
+		}
+
+	}
+	RxBuffer[0]= 0;
+}
+
 void DummyTask()
 {
 	static uint32_t timestamp=0;
 	if (HAL_GetTick()>=timestamp)
 	{
 		timestamp = HAL_GetTick()+(1000/(2.0*LEDfrequency));
-		if(RxBuffer[0] == 'd')
-		{
-			HAL_GPIO_WritePin(LD2_GPIO_Port,LD2_Pin, RESET);
-		}
+		HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
 	}
 }
 
